@@ -4,6 +4,10 @@
 #include <array>
 #include <cmath>
 #include <stdint.h>
+#include <vector>
+#include <algorithm>
+#include <iterator>
+#include <iostream>
 
 #define N 6
 #define K 6
@@ -99,13 +103,24 @@ void Grid::getGrid(std::array<double, N>& x, std::array<double, K>& y)
 
 class LaplasEquationSolver {
 public:
-	LaplasEquationSolver(double (*u1)[N], std::array<double, N>& x, std::array<double, K>& y);
+	double w;
+	LaplasEquationSolver(double(*u1)[N], std::array<double, N>& x, std::array<double, K>& y, double w);
 };
 
-LaplasEquationSolver::LaplasEquationSolver(double (*u1)[N], std::array<double, N>& x, std::array<double, K>& y)
+LaplasEquationSolver::LaplasEquationSolver(double(*u1)[N], std::array<double, N>& x, std::array<double, K>& y, double w)
 {
-	double u2[N][K] = { 0 };
-	double w = 0.5;
+	double u2[N][K] = { 0 }, u_new[N][K] = { 0 };
+	std::vector<double> errors;
+	double max_error;
+	double eps = 0.01;
+
+	for (uint8_t i = 0; i < N; ++i)
+		for (uint8_t j = 0; j < K; ++j) {
+			u1[i][j] = 0;
+			u2[i][j] = 0;
+			u_new[i][j] = 0;
+		}
+
 
 	for (uint8_t i = 0; i < N; ++i)
 	{
@@ -119,29 +134,86 @@ LaplasEquationSolver::LaplasEquationSolver(double (*u1)[N], std::array<double, N
 		u1[N - 1][j] = rightSideRectangle(y[j]);
 	}
 
+	for (uint8_t i = 0; i < N; ++i)
+	{
+		u2[i][0] = downSideRectangle(x[i]);
+		u2[i][K - 1] = upSideRectangle(x[i]);
+	}
 
+	for (uint8_t j = 0; j < K; ++j)
+	{
+		u2[0][j] = leftSideRectangle(y[j]);
+		u2[N - 1][j] = rightSideRectangle(y[j]);
+	}
+
+	int k = 0;
+	do {
+		for (uint8_t i = 1; i < N - 1; ++i) {
+			for (uint8_t j = 1; j < K - 1; ++j) {
+				u1[i][j] = (1.0 / 4.0) * (u1[i - 1][j] + u1[i + 1][j] + u1[i][j - 1] + u1[i][j + 1]);
+			}
+		}
+
+		for (uint8_t i = 1; i < N - 1; ++i) {
+			for (uint8_t j = 1; j < K - 1; ++j) {
+				u2[i][j] = (1.0 / 4.0) * (u1[i - 1][j] + u1[i + 1][j] + u1[i][j - 1] + u1[i][j + 1]);
+			}
+		}
+
+		for (uint8_t i = 0; i < N; ++i) {
+			for (uint8_t j = 0; j < K; ++j) {
+				u_new[i][j] = u1[i][j] + w * (u2[i][j] - u1[i][j]);
+			}
+		}
+
+
+		for (uint8_t i = 0; i < N; ++i) {
+			for (uint8_t j = 0; j < K; ++j) {
+				errors.push_back(fabs(u_new[i][j] - u1[i][j]));;
+			}
+		}
+
+		max_error = *std::max_element(errors.begin(), errors.end());
+
+		errors.clear();
+
+		for (uint8_t i = 0; i < N; ++i) {
+			for (uint8_t j = 0; j < K; ++j) {
+				u1[i][j] = u_new[i][j];
+			}
+		}
+		k++;
+	} while (max_error > eps);
+
+	std::cout << "w= " << w << "   k= " << k << "\n";
 }
 
 
 
-int main() 
+
+int main(void) 
 {
 	std::array<double, N> x = { 0 };
 	std::array<double, K> y = { 0 };
 	double u[N][K] = { 0 };
 
-	Grid grid(1, 1, 0.2, x, y); //will call 2nd constructor (not default)
+	/*calling 2nd constructor*/
+	Grid grid(1, 1, 0.2, x, y); 
 
+	/*print grid to console*/
 	grid.getGrid(x, y);
 
-	LaplasEquationSolver mySolver(u, x, y);
+	double w = 1.9;
+	LaplasEquationSolver mySolver(u, x, y, w);
 
-	for (int i = 0; i < N; ++i)
+
+
+	/*for (uint8_t i = 0; i < N; ++i)
 	{
-		for (int j = 0; j < K; ++j)
+		for (uint8_t j = 0; j < K; ++j)
 			printf(" %lf\t", u[i][j]);
 		printf("\n\n");
-	}
+	}*/
 
 	return 0;
 }
